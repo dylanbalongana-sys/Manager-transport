@@ -7,18 +7,13 @@ export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
 type Role = 'admin' | 'collaborator' | null;
 
 /**
- * Supprime récursivement toutes les valeurs `undefined`
+ * Supprime récursivement toutes les valeurs undefined
  * pour éviter l'erreur Firestore :
- * "Unsupported field value: undefined"
+ * Unsupported field value: undefined
  */
 function removeUndefinedDeep(value: any): any {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === null) {
-    return null;
-  }
+  if (value === undefined) return undefined;
+  if (value === null) return null;
 
   if (Array.isArray(value)) {
     return value
@@ -42,19 +37,16 @@ function removeUndefinedDeep(value: any): any {
   return value;
 }
 
-/**
- * Objectif :
- * - upload auto vers Firebase quand les données changent
- * - réception temps réel depuis Firebase
- * - protection contre les boucles local <-> distant
- * - conservation locale de certains réglages sensibles comme syncEnabled
- */
 export function useFirebaseSync(enabled: boolean, role: Role) {
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [lastSync, setLastSync] = useState<Date | null>(null);
 
   const isApplyingRemoteRef = useRef(false);
   const uploadTimerRef = useRef<number | null>(null);
+
+  // ✅ nouveau : on attend la toute première lecture Firebase
+  const hasCheckedRemoteRef = useRef(false);
+  const remoteDocExistsRef = useRef(false);
 
   const store = useStore();
 
@@ -93,7 +85,6 @@ export function useFirebaseSync(enabled: boolean, role: Role) {
       updatedByRole: role || 'unknown',
     };
 
-    // ✅ Nettoyage global avant envoi à Firebase
     return removeUndefinedDeep(rawData);
   }, [
     enabled,
@@ -131,40 +122,28 @@ export function useFirebaseSync(enabled: boolean, role: Role) {
     }
   };
 
+  // ✅ Écoute Firebase d'abord
   useEffect(() => {
     if (!enabled) return;
     if (!role) return;
-    if (!localPayload) return;
-    if (isApplyingRemoteRef.current) return;
-
-    if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
-
-    uploadTimerRef.current = window.setTimeout(() => {
-      uploadToCloud();
-    }, 550);
-
-    return () => {
-      if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
-      uploadTimerRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, role, localPayload]);
-
-  useEffect(() => {
-    if (!enabled) return;
 
     setStatus('syncing');
+    hasCheckedRemoteRef.current = false;
 
     const unsubscribe = onSnapshot(
       doc(db, 'shared', 'hiace-data'),
       (snapshot) => {
+        hasCheckedRemoteRef.current = true;
+
         if (!snapshot.exists()) {
+          remoteDocExistsRef.current = false;
           setStatus('idle');
           return;
         }
 
-        const data: any = snapshot.data() || {};
+        remoteDocExistsRef.current = true;
 
+        const data: any = snapshot.data() || {};
         isApplyingRemoteRef.current = true;
 
         try {
@@ -218,7 +197,7 @@ export function useFirebaseSync(enabled: boolean, role: Role) {
               delete incomingSettings.adminPin;
             }
 
-            // On garde toujours la valeur locale
+            // ✅ on garde la valeur locale de syncEnabled
             incomingSettings.syncEnabled = currentLocalSettings.syncEnabled;
 
             store.updateSettings(incomingSettings);
@@ -243,6 +222,33 @@ export function useFirebaseSync(enabled: boolean, role: Role) {
 
     return () => unsubscribe();
   }, [enabled, role]);
+
+  // ✅ Upload seulement APRÈS la première lecture Firebase
+  useEffect(() => {
+    if (!enabled) return;
+    if (!role) return;
+    if (!localPayload) return;
+
+    // on attend la première réponse du cloud
+    if (!hasCheckedRemoteRef.current) return;
+
+    // si on applique une donnée venant de Firebase, pas d'upload
+    if (isApplyingRemoteRef.current) return;
+
+    if (uploadTimerRef.current) {
+      window.clearTimeout(uploadTimerRef.current);
+    }
+
+    uploadTimerRef.current = window.setTimeout(() => {
+      uploadToCloud();
+    }, 550);
+
+    return () => {
+      if (uploadTimerRef.current) window.clearTimeout(uploadTimerRef.current);
+      uploadTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, role, localPayload]);
 
   return { status, lastSync, uploadToCloud };
 }
