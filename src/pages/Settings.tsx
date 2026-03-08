@@ -105,18 +105,15 @@ export default function Settings({ role }: Props) {
   const [tab, setTab] = useState<TabKey>('security');
   const [saved, setSaved] = useState(false);
 
-  // --- PIN ---
   const [showAdminPin, setShowAdminPin] = useState(false);
   const [showCollabPin, setShowCollabPin] = useState(false);
 
   const [adminPin, setAdminPin] = useState(settings.adminPin || '1234');
   const [collabPin, setCollabPin] = useState(settings.collaboratorPin || '0000');
 
-  // --- KPI edits ---
   const [cashEdit, setCashEdit] = useState(String(cashBalance || 0));
   const [maintenanceEdit, setMaintenanceEdit] = useState(String(maintenanceFund || 0));
 
-  // KPI Dashboard (override)
   const currentOverrides = settings.dashboardOverrides || {};
   const [kpiTodayEdit, setKpiTodayEdit] = useState(
     currentOverrides.todayRevenueBrut == null ? '' : String(currentOverrides.todayRevenueBrut)
@@ -134,7 +131,6 @@ export default function Settings({ role }: Props) {
     currentOverrides.totalBreakdowns == null ? '' : String(currentOverrides.totalBreakdowns)
   );
 
-  // --- Docs upload ---
   const [docCategory, setDocCategory] = useState<'collaborator' | 'driver' | 'controller' | 'regulatory' | 'other'>(
     'collaborator'
   );
@@ -164,22 +160,14 @@ export default function Settings({ role }: Props) {
     pulseSaved();
   };
 
+  // ✅ Maintenant admin ET collaborateur peuvent activer la synchro
   const handleEnableSync = () => {
-    if (role !== 'admin') {
-      alert("Seul l'administrateur peut activer ou désactiver la synchronisation.");
-      return;
-    }
-
     updateSettings({ syncEnabled: true });
     pulseSaved();
   };
 
+  // ✅ L’admin peut désactiver ; le collaborateur aussi sur son appareil
   const handleDisableSync = () => {
-    if (role !== 'admin') {
-      alert("Seul l'administrateur peut activer ou désactiver la synchronisation.");
-      return;
-    }
-
     updateSettings({ syncEnabled: false });
     pulseSaved();
   };
@@ -414,7 +402,7 @@ export default function Settings({ role }: Props) {
               subtitle={
                 role === 'admin'
                   ? "Active ou coupe l'envoi automatique des données vers Firebase."
-                  : "Le collaborateur peut voir l'état, mais seul l'administrateur peut le modifier."
+                  : "Le collaborateur peut aussi activer la synchronisation sur son appareil pour récupérer les données."
               }
               icon={Cloud}
             >
@@ -447,53 +435,40 @@ export default function Settings({ role }: Props) {
                 </div>
               </div>
 
-              {role !== 'admin' ? (
-                <div
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+              <div className="flex flex-col md:flex-row gap-3">
+                <button
+                  onClick={handleEnableSync}
+                  className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                  style={{
+                    background: 'rgba(0,230,118,0.14)',
+                    border: '1px solid rgba(0,230,118,0.28)',
+                    color: '#00E676',
+                  }}
                 >
-                  <AlertTriangle className="w-5 h-5 text-amber-400" />
-                  <p className="text-slate-300 text-sm">
-                    Seul l’administrateur peut changer ce réglage.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col md:flex-row gap-3">
-                  <button
-                    onClick={handleEnableSync}
-                    className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
-                    style={{
-                      background: 'rgba(0,230,118,0.14)',
-                      border: '1px solid rgba(0,230,118,0.28)',
-                      color: '#00E676',
-                    }}
-                  >
-                    <Cloud className="w-4 h-4" />
-                    Activer la synchronisation
-                  </button>
+                  <Cloud className="w-4 h-4" />
+                  Activer la synchronisation
+                </button>
 
-                  <button
-                    onClick={handleDisableSync}
-                    className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
-                    style={{
-                      background: 'rgba(239,68,68,0.08)',
-                      border: '1px solid rgba(239,68,68,0.18)',
-                      color: '#ef4444',
-                    }}
-                  >
-                    <CloudOff className="w-4 h-4" />
-                    Désactiver la synchronisation
-                  </button>
-                </div>
-              )}
+                <button
+                  onClick={handleDisableSync}
+                  className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                  style={{
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.18)',
+                    color: '#ef4444',
+                  }}
+                >
+                  <CloudOff className="w-4 h-4" />
+                  Désactiver la synchronisation
+                </button>
+              </div>
 
               <div
                 className="mt-5 rounded-2xl p-4"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
               >
                 <p className="text-slate-500 text-xs">
-                  Important : si la synchronisation est coupée, Firebase peut garder une ancienne structure,
-                  mais les nouvelles opérations ne monteront pas.
+                  Important : sur un nouvel appareil, active la synchronisation pour récupérer les données déjà présentes dans Firebase.
                 </p>
               </div>
             </Card>
